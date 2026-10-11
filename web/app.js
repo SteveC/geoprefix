@@ -359,4 +359,29 @@ $('#app-form').addEventListener('submit', async (event) => {
   finally { setBusy(button, false, 'Create app token '); }
 });
 
+
+$('#interest-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = $('#interest-button');
+  const status = $('#interest-status');
+  const organization = $('#interest-organization').value.trim();
+  const contact = $('#interest-email').value.trim();
+  const plan = $('#interest-plan').value;
+  if (!organization || !contact || !['managed', 'dedicated', 'support'].includes(plan)) {
+    setStatus(status, 'Add your organization, a valid work email, and the service you are interested in.', 'error');
+    return;
+  }
+  setBusy(button, true, 'Recording interest ');
+  setStatus(status, 'Recording your interest…');
+  try {
+    const result = await request('/api/plans/interest', {
+      method: 'POST', body: JSON.stringify({ organization, contact, plan }),
+    });
+    setStatus(status, typeof result.message === 'string' ? result.message : 'Interest recorded. Paid plans are not active yet; no payment has been taken.', 'success');
+    $('#interest-form').reset();
+  } catch (error) {
+    setStatus(status, error.message || 'Your interest could not be recorded. Please try again.', 'error');
+  } finally { setBusy(button, false, 'Register interest '); }
+});
+
 await Promise.allSettled([refreshStats(), refreshNetworks(), refreshAccuracy()]);

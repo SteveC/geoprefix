@@ -93,6 +93,8 @@ def test_consensus_reverse_export_and_conflict(api):
     assert answer['country_code']=='US'
     assert answer['asn'] is None and answer['city'] is None
     assert answer['accuracy_radius_km']>=8
+    assert answer['first_seen']==(datetime.now(timezone.utc)-timedelta(days=1)).date().isoformat()
+    assert answer['last_seen']==datetime.now(timezone.utc).date().isoformat()
     assert c.get('/api/reverse?latitude=39.7&longitude=-104.9&radius_km=10').json()['total']==1
     published=c.get('/api/dataset.json').json()['networks']
     assert 'observer_hash' not in str(published) and 'test' not in str(published)
@@ -153,3 +155,13 @@ def test_chunked_body_limit(api):
         yield b'x'*17000
         yield b'"}'
     assert c.post('/api/apps',content=chunks(),headers={'content-type':'application/json'}).status_code==413
+
+
+def test_observation_day_uses_utc(api):
+    m,c=api
+    captured=datetime.now(timezone(timedelta(hours=14)))
+    result=c.post('/api/demo/observations',json=payload(captured_at=captured.isoformat()),headers=headers())
+    assert result.status_code==202
+    with m.db() as db:
+        stored=db.execute('SELECT captured_at FROM observations').fetchone()['captured_at']
+    assert stored==captured.astimezone(timezone.utc).isoformat()

@@ -1,6 +1,6 @@
 # GeoPrefix SDKs
 
-GeoPrefix provides a browser ESM module with TypeScript declarations, a Swift package, an Android Kotlin client and a dependency-free Python client. These are initial clients for the same open API, not published package-registry releases. Software is Apache-2.0; GeoPrefix's own published aggregate data is CC0. Imported data retains its source license and attribution.
+GeoPrefix provides a browser ESM module with TypeScript declarations, a Swift package, an Android Kotlin client, and dependency-free Dart and Python clients. See [Flutter integration](flutter.md) for the permission, automatic contribution and fallback helper. These are initial clients for the same open API, not published package-registry releases. Software is Apache-2.0; GeoPrefix's own published aggregate data is CC0. Imported data retains its source license and attribution.
 
 ## Browser and TypeScript
 

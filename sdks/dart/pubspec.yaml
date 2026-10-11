@@ -1,0 +1,8 @@
+name: geoprefix
+version: 0.1.0
+description: A dependency-free GeoPrefix API client for Dart and Flutter mobile or desktop.
+repository: https://github.com/SteveC/geoprefix
+homepage: https://geoprefix-preview.goodspider.net
+publish_to: none
+environment:
+  sdk: '>=3.0.0 <4.0.0'

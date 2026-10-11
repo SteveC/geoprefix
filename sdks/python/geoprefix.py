@@ -13,7 +13,7 @@ class GeoPrefix:
         self.timeout = timeout
 
     def _request(self, path, body=None):
-        headers = {"Accept": "application/json"}
+        headers = {"Accept": "application/json", "User-Agent": "GeoPrefix/0.1 Python SDK"}
         if self.app_token:
             headers["Authorization"] = f"Bearer {self.app_token}"
         if body is not None:

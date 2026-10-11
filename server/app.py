@@ -257,7 +257,7 @@ def networks(c):
         if spread>100:
             continue # conflicting/shared/mobile exits need a distribution model before publication
         result={k:None for k in COLUMNS}
-        result.update(network=prefix,ip_version=ipaddress.ip_network(prefix).version,latitude=lat,longitude=lon,accuracy_radius_km=round(max(8,spread),2),sample_count=len(samples),distinct_observers=len(observers),first_seen=samples[0]['captured_at'][:10],last_seen=samples[-1]['captured_at'][:10],updated_at=samples[-1]['created_at'][:10],confidence='medium' if len(observers)>=20 else 'low',source='community',method='coarse-prefix-consensus',license='CC0-1.0',grid_degrees=0.1)
+        result.update(network=prefix,ip_version=ipaddress.ip_network(prefix).version,latitude=lat,longitude=lon,accuracy_radius_km=round(max(8,spread),2),sample_count=len(samples),distinct_observers=len(observers),first_seen=min(days),last_seen=max(days),updated_at=samples[-1]['created_at'][:10],confidence='medium' if len(observers)>=20 else 'low',source='community',method='coarse-prefix-consensus',license='CC0-1.0',grid_degrees=0.1)
         result.update(country_at(lat,lon))
         errors=[x['error_km'] for x in c.execute('SELECT error_km FROM evaluations WHERE network=?',(prefix,))]
         result['evaluation_count']=len(errors)
@@ -309,6 +309,7 @@ def ingest(body, request, app_id):
     captured=body.captured_at or datetime.now(timezone.utc)
     if captured.tzinfo is None:
         raise HTTPException(422,'captured_at must include a timezone')
+    captured=captured.astimezone(timezone.utc)
     delta=datetime.now(timezone.utc)-captured
     if delta.total_seconds() < -300 or delta.total_seconds()>86400:
         raise HTTPException(422,'Use a fresh observation from the past 24 hours')
