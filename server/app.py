@@ -34,11 +34,12 @@ if not secret_file.exists():
         f.write(secrets.token_hex(32))
 HASH_KEY = secret_file.read_bytes()
 MIN_SAMPLES = max(5, int(os.getenv('MIN_SAMPLES', '5')))
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 CF_RANGES = ('173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22','141.101.64.0/18','108.162.192.0/18','190.93.240.0/20','188.114.96.0/20','197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13','104.24.0.0/14','172.64.0.0/13','131.0.72.0/22','2400:cb00::/32','2606:4700::/32','2803:f800::/32','2405:b500::/32','2405:8100::/32','2a06:98c0::/29','2c0f:f248::/32')
 TRUSTED = [ipaddress.ip_network(n) for n in os.getenv('TRUST_PROXY_CIDRS', ','.join(CF_RANGES)).split(',') if n]
 CF_NETWORKS = [ipaddress.ip_network(n) for n in CF_RANGES]
 COLUMNS = ['network','ip_version','latitude','longitude','accuracy_radius_km','country_code','country_name','continent','region','region_code','city','postal_code','timezone','asn','as_name','as_domain','isp','organization','network_type','is_anycast','is_mobile','is_hosting','is_vpn','is_proxy','is_tor','sample_count','distinct_observers','first_seen','last_seen','updated_at','confidence','source','method','license','grid_degrees','median_error_km','p90_error_km','evaluation_count','registered_country','routing_prefix']
+COLUMNS += ['location_count','observed_median_distance_km','observed_p90_distance_km','observed_max_distance_km','distribution_status']
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -69,6 +70,11 @@ with db() as c:
     CREATE TABLE IF NOT EXISTS counters(bucket TEXT PRIMARY KEY,n INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS interests(id TEXT PRIMARY KEY,organization TEXT,contact TEXT,plan TEXT,created_at TEXT);
     ''')
+    # Preserve existing records and their original 30-day retention agreement.
+    existing={row['name'] for row in c.execute('PRAGMA table_info(observations)')}
+    for name, definition in {'retention': "TEXT NOT NULL DEFAULT '30_days'", 'provider': 'TEXT', 'reported_accuracy_m': 'REAL', 'quarantined': 'INTEGER NOT NULL DEFAULT 0'}.items():
+        if name not in existing:
+            c.execute(f'ALTER TABLE observations ADD COLUMN {name} {definition}')
 
 @asynccontextmanager
 async def lifespan(application):
@@ -145,6 +151,8 @@ async def headers(request: Request, call_next):
         res.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; img-src 'self' data: https://fastapi.tiangolo.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'"
     if request.url.path.startswith('/api/'):
         res.headers['Cache-Control'] = 'no-store'
+    else:
+        res.headers['Cache-Control'] = 'no-cache'
     return res
 
 def client_ip(request):
@@ -230,14 +238,39 @@ def country_at(lat, lon):
 
 def cleanup(c):
     cutoff=(datetime.now(timezone.utc)-timedelta(days=30)).isoformat()
-    c.execute('DELETE FROM evaluations WHERE observation_id IN (SELECT id FROM observations WHERE created_at < ?)', (cutoff,))
-    c.execute('DELETE FROM observations WHERE created_at < ?', (cutoff,))
+    c.execute("DELETE FROM evaluations WHERE observation_id IN (SELECT id FROM observations WHERE retention='30_days' AND created_at < ?)", (cutoff,))
+    c.execute("DELETE FROM observations WHERE retention='30_days' AND created_at < ?", (cutoff,))
     # Keep monthly counters and only the recent minute buckets.
     c.execute("DELETE FROM counters WHERE bucket NOT LIKE 'month:%' AND substr(bucket,-16) < ?", ((datetime.now(timezone.utc)-timedelta(hours=2)).isoformat()[:16],))
 
+def evaluation_samples(c):
+    groups={}
+    rows=c.execute('SELECT e.network,e.error_km,e.network_type,o.observer_hash,o.captured_at FROM evaluations e JOIN observations o ON o.id=e.observation_id').fetchall()
+    for r in rows:
+        key=(r['network'],r['observer_hash'],r['captured_at'][:10])
+        groups.setdefault(key,[]).append(r)
+    return [{'network':prefix,'error_km':statistics.median(r['error_km'] for r in values),'network_type':values[0]['network_type'] if len({r['network_type'] for r in values})==1 else 'mixed'} for (prefix,_,_),values in groups.items()]
+
+def evaluation_groups(c):
+    output={}
+    for sample in evaluation_samples(c):
+        output.setdefault(sample['network'],[]).append(sample['error_km'])
+    return output
+
+def weighted_percentile(values, fraction):
+    ordered=sorted(values)
+    threshold=sum(weight for _,weight in ordered)*fraction
+    cumulative=0
+    for value,weight in ordered:
+        cumulative+=weight
+        if cumulative>=threshold:
+            return value
+    return ordered[-1][0]
+
 def networks(c):
     cleanup(c)
-    rows=c.execute('SELECT * FROM observations WHERE holdout=0 ORDER BY created_at').fetchall()
+    rows=c.execute('SELECT * FROM observations WHERE holdout=0 AND quarantined=0 ORDER BY created_at').fetchall()
+    evaluations=evaluation_groups(c)
     groups={}
     for r in rows:
         groups.setdefault(r['network'], []).append(r)
@@ -247,19 +280,30 @@ def networks(c):
         days={r['captured_at'][:10] for r in samples}
         if len(observers)<MIN_SAMPLES or len(days)<2:
             continue
-        lat=round(statistics.median(r['latitude'] for r in samples),1)
-        # Circular mean avoids longitude wraparound and scales linearly with evidence.
-        x=sum(math.cos(math.radians(r['longitude'])) for r in samples)
-        y=sum(math.sin(math.radians(r['longitude'])) for r in samples)
-        lon=round(math.degrees(math.atan2(y,x)),1)
-        radii=[distance(lat,lon,r['latitude'],r['longitude'])+r['accuracy_m']/1000 for r in samples]
-        spread=max(radii)
-        if spread>100:
-            continue # conflicting/shared/mobile exits need a distribution model before publication
+        # Every point stays in history. For estimation, each public address has
+        # total weight one across its unique observed cells, so refreshes cannot
+        # drown out an address observed elsewhere.
+        cells={}
+        for r in samples:
+            cells.setdefault(r['observer_hash'],set()).add((r['latitude'],r['longitude']))
+        weighted=[(a,b,1/len(points)) for points in cells.values() for a,b in points]
+        x=sum(w*math.cos(math.radians(a))*math.cos(math.radians(b)) for a,b,w in weighted)
+        y=sum(w*math.cos(math.radians(a))*math.sin(math.radians(b)) for a,b,w in weighted)
+        z=sum(w*math.sin(math.radians(a)) for a,b,w in weighted)
+        if math.sqrt(x*x+y*y+z*z)<1e-8:
+            lat,lon=min((a,b) for a,b,_ in weighted)
+        else:
+            lat=round(math.degrees(math.atan2(z,math.hypot(x,y))),1)
+            lon=round(math.degrees(math.atan2(y,x)),1)
+        offsets=[(distance(lat,lon,a,b),w) for a,b,w in weighted]
+        maximum=max(value for value,_ in offsets)
+        spread=max(distance(lat,lon,r['latitude'],r['longitude'])+r['accuracy_m']/1000 for r in samples)
+        dispersed=spread>100
         result={k:None for k in COLUMNS}
-        result.update(network=prefix,ip_version=ipaddress.ip_network(prefix).version,latitude=lat,longitude=lon,accuracy_radius_km=round(max(8,spread),2),sample_count=len(samples),distinct_observers=len(observers),first_seen=min(days),last_seen=max(days),updated_at=samples[-1]['created_at'][:10],confidence='medium' if len(observers)>=20 else 'low',source='community',method='coarse-prefix-consensus',license='CC0-1.0',grid_degrees=0.1)
-        result.update(country_at(lat,lon))
-        errors=[x['error_km'] for x in c.execute('SELECT error_km FROM evaluations WHERE network=?',(prefix,))]
+        result.update(network=prefix,ip_version=ipaddress.ip_network(prefix).version,latitude=lat,longitude=lon,accuracy_radius_km=round(max(8,spread),2),sample_count=len(samples),distinct_observers=len(observers),first_seen=min(days),last_seen=max(days),updated_at=samples[-1]['created_at'][:10],confidence='medium' if len(observers)>=20 and not dispersed else 'low',source='community',method='observer-balanced-history',license='CC0-1.0',grid_degrees=0.1,location_count=len({(r['latitude'],r['longitude']) for r in samples}),observed_median_distance_km=round(weighted_percentile(offsets,.5),2),observed_p90_distance_km=round(weighted_percentile(offsets,.9),2),observed_max_distance_km=round(maximum,2),distribution_status='dispersed' if dispersed else 'compact')
+        if not dispersed:
+            result.update(country_at(lat,lon))
+        errors=evaluations.get(prefix,[])
         result['evaluation_count']=len(errors)
         if errors:
             result['median_error_km']=round(statistics.median(errors),2)
@@ -301,6 +345,7 @@ class Observation(BaseModel):
     provider: Optional[str] = Field(default=None,max_length=40)
     reported_accuracy_m: Optional[float] = Field(default=None,ge=0,le=100000,allow_inf_nan=False)
     network_type: str = Field(default='unknown',pattern='^(unknown|fixed|mobile|hosting|vpn|relay|satellite)$')
+    retention: str = Field(default='30_days',pattern='^(30_days|history)$')
 
 def ingest(body, request, app_id):
     if not body.consent:
@@ -313,8 +358,7 @@ def ingest(body, request, app_id):
     delta=datetime.now(timezone.utc)-captured
     if delta.total_seconds() < -300 or delta.total_seconds()>86400:
         raise HTTPException(422,'Use a fresh observation from the past 24 hours')
-    if body.network_type in ('vpn','relay','hosting','satellite'):
-        return {'status':'quarantined','reason':'This connection type cannot safely associate user location with its exit address','id':None}
+    quarantined=int(body.network_type in ('vpn','relay','hosting','satellite'))
     prefix=str(ipaddress.ip_network(str(ip)+('/24' if ip.version==4 else '/48'),strict=False))
     observer=digest(str(ip))
     ident=secrets.token_hex(16)
@@ -324,17 +368,18 @@ def ingest(body, request, app_id):
     radius=max(8000,body.accuracy_m)
     with db() as c:
         c.execute('BEGIN IMMEDIATE')
-        previous=c.execute('SELECT id FROM observations WHERE network=? AND observer_hash=? AND substr(captured_at,1,10)=?',(prefix,observer,captured.isoformat()[:10])).fetchone()
+        previous=c.execute('SELECT id FROM observations WHERE network=? AND observer_hash=? AND captured_at=?',(prefix,observer,captured.isoformat())).fetchone()
         if previous:
-            return {'status':'duplicate','id':previous['id'],'message':'One observation per public address per day is sufficient'}
-        # Holdouts are never used to construct public network estimates.
-        holdout=int(int(digest(ident)[:8],16)%5==0)
-        estimate=lookup(c,ip) if holdout else None
-        c.execute('INSERT INTO observations VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',(ident,app_id,prefix,observer,lat,lon,radius,captured.isoformat(),now(),digest(receipt),holdout,body.network_type,body.source))
+            return {'status':'duplicate','id':previous['id'],'message':'This exact capture is already in the history'}
+        # The whole address stays in one split; repeated visits never leak an
+        # evaluation address into the map that is used to evaluate that address.
+        holdout=int(int(digest(prefix+':'+observer)[:8],16)%5==0)
+        estimate=lookup(c,ip) if holdout and not quarantined else None
+        c.execute('INSERT INTO observations(id,app_id,network,observer_hash,latitude,longitude,accuracy_m,captured_at,created_at,receipt_hash,holdout,network_type,source,retention,provider,reported_accuracy_m,quarantined) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(ident,app_id,prefix,observer,lat,lon,radius,captured.isoformat(),now(),digest(receipt),holdout,body.network_type,body.source,body.retention,body.provider,body.reported_accuracy_m,quarantined))
         if estimate and estimate['status']=='found':
             error=distance(lat,lon,estimate['latitude'],estimate['longitude'])
             c.execute('INSERT INTO evaluations VALUES (?,?,?,?,?,?)',(secrets.token_hex(12),ident,prefix,error,now(),body.network_type))
-    return {'id':ident,'status':'accepted','contribution_receipt':receipt,'holdout':bool(holdout),'stored_precision_degrees':0.1,'license':'CC0-1.0','message':'Coarse observation received. Publication requires at least five distinct address observations across two days.'}
+    return {'id':ident,'status':'quarantined' if quarantined else 'accepted','contribution_receipt':receipt,'holdout':bool(holdout),'retention':body.retention,'stored_precision_degrees':0.1,'license':'CC0-1.0','message':'Observation kept in private history; excluded from location estimates because of its connection type.' if quarantined else 'Observation saved. Publication requires at least five distinct address observations across two days.'}
 
 @app.post('/api/observations',status_code=202)
 def contribute(body:Observation,request:Request,authorization:Optional[str]=Header(default=None)):
@@ -363,7 +408,9 @@ def withdraw(ident:str,x_contribution_receipt:str=Header(default='')):
 
 @app.get('/api/me')
 def me(request:Request):
-    return {'ip':str(client_ip(request))}
+    ip=client_ip(request)
+    prefix=ipaddress.ip_network(str(ip)+('/24' if ip.version==4 else '/48'),strict=False)
+    return {'ip':str(ip),'network':str(prefix)}
 
 @app.get('/api/lookup')
 def find(request:Request,ip:Optional[str]=None,authorization:Optional[str]=Header(default=None)):
@@ -420,9 +467,10 @@ def accuracy(request:Request=None):
         rate(request,'accuracy',60)
     with db() as c:
         cleanup(c)
-        rows=c.execute('SELECT error_km,network_type FROM evaluations').fetchall()
-    errors=sorted(r['error_km'] for r in rows)
-    return {'sample_count':len(errors),'median_error_km':round(statistics.median(errors),2) if errors else None,'p90_error_km':round(errors[math.ceil(len(errors)*.9)-1],2) if errors else None,'within_25km_percent':round(100*sum(e<=25 for e in errors)/len(errors),1) if errors else None,'by_network_type':[{'network_type':kind,'sample_count':sum(r['network_type']==kind for r in rows)} for kind in sorted({r['network_type'] for r in rows})],'methodology':'Random 20% holdout observations are never included in map construction. Errors compare coarse contributed coordinates with the existing prefix estimate. Browser location sources are unverified; figures include rounding uncertainty and sampling bias. These are community evaluations, not an independent audit. Samples expire after 30 days.'}
+        raw_count=c.execute('SELECT count(*) FROM evaluations').fetchone()[0]
+        samples=evaluation_samples(c)
+    errors=sorted(r['error_km'] for r in samples)
+    return {'sample_count':len(errors),'evaluated_observations':raw_count,'median_error_km':round(statistics.median(errors),2) if errors else None,'p90_error_km':round(errors[math.ceil(len(errors)*.9)-1],2) if errors else None,'within_25km_percent':round(100*sum(e<=25 for e in errors)/len(errors),1) if errors else None,'by_network_type':[{'network_type':kind,'sample_count':sum(r['network_type']==kind for r in samples)} for kind in sorted({r['network_type'] for r in samples})],'methodology':'Public addresses are assigned to a deterministic 20% holdout split; new holdout addresses never train the map. Legacy launch observations keep their original per-observation split. Errors compare coarse contributed coordinates with preexisting estimates and are summarized per address per UTC day to limit repeat-visit bias. Observed location spread in exports is descriptive dispersion, separate from held-out prediction error. Browser positions are unverified and sampling is biased; this is not an independent GPS audit. History contributions remain until withdrawal; legacy 30-day contributions retain their agreed expiry.'}
 
 @app.get('/api/stats')
 def stats(request:Request):
@@ -430,8 +478,10 @@ def stats(request:Request):
     with db() as c:
         items=networks(c)
         total=c.execute('SELECT count(*) FROM observations').fetchone()[0]
+        history=c.execute("SELECT count(*) FROM observations WHERE retention='history'").fetchone()[0]
+        quarantined=c.execute('SELECT count(*) FROM observations WHERE quarantined=1').fetchone()[0]
     a=accuracy()
-    return {'observations':total,'published_networks':len(items),'independent_evaluations':a['sample_count'],'median_error_km':a['median_error_km'],'p90_error_km':a['p90_error_km'],'countries':len({n['country_code'] for n in items if n['country_code']}),'ipv4_networks':sum(n['ip_version']==4 for n in items),'ipv6_networks':sum(n['ip_version']==6 for n in items),'updated_at':max((n['updated_at'] for n in items),default=None),'mrr_usd':0,'target_mrr_usd':1000,'billing_status':'not_connected','version':VERSION,'minimum_observers':MIN_SAMPLES,'dataset_license':'CC0-1.0'}
+    return {'observations':total,'history_observations':history,'quarantined_observations':quarantined,'dispersed_networks':sum(n['distribution_status']=='dispersed' for n in items),'published_networks':len(items),'independent_evaluations':a['sample_count'],'median_error_km':a['median_error_km'],'p90_error_km':a['p90_error_km'],'countries':len({n['country_code'] for n in items if n['country_code']}),'ipv4_networks':sum(n['ip_version']==4 for n in items),'ipv6_networks':sum(n['ip_version']==6 for n in items),'updated_at':max((n['updated_at'] for n in items),default=None),'mrr_usd':0,'target_mrr_usd':1000,'billing_status':'not_connected','version':VERSION,'minimum_observers':MIN_SAMPLES,'dataset_license':'CC0-1.0'}
 
 class Interest(BaseModel):
     organization:str=Field(min_length=1,max_length=100)

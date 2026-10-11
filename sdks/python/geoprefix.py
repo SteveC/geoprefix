@@ -35,12 +35,14 @@ class GeoPrefix:
             latitude=latitude, longitude=longitude, radius_km=radius_km)))
 
     def contribute(self, latitude, longitude, accuracy_m, *, consent=False,
-                   captured_at=None, source="native", provider="unknown"):
+                   captured_at=None, source="native", provider="unknown", retention="30_days"):
         """Upload only host-authorized observations; never uploads precise coordinates."""
         if consent is not True:
             raise ValueError("Explicit contribution consent is required")
         if not self.app_token:
             raise ValueError("A scoped application token is required")
+        if retention not in ("30_days", "history"):
+            raise ValueError("retention must be 30_days or history")
         _coordinates(latitude, longitude)
         if not math.isfinite(accuracy_m) or accuracy_m < 0:
             raise ValueError("accuracy_m must be non-negative")
@@ -49,7 +51,7 @@ class GeoPrefix:
             latitude=round(latitude, 1), longitude=round(longitude, 1),
             accuracy_m=accuracy_m + 8000, reported_accuracy_m=accuracy_m,
             captured_at=captured_at or datetime.now(timezone.utc).isoformat(),
-            source=source, provider=provider, consent=True))
+            source=source, provider=provider, consent=True, retention=retention))
 
 
 def _coordinates(latitude, longitude):

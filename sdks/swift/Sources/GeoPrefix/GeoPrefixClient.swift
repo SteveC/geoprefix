@@ -50,9 +50,10 @@ public struct GeoPrefixClient: Sendable {
     }
     /// Host obtains native permission AND separate permission for contribution.
     public func contribute(latitude: Double, longitude: Double, accuracyMeters: Double,
-                           consent: Bool, capturedAt: Date = Date(), provider: String = "unknown") async throws -> [String: JSONValue] {
+                           consent: Bool, capturedAt: Date = Date(), provider: String = "unknown", retention: String = "30_days") async throws -> [String: JSONValue] {
         guard consent else { throw GeoPrefixError.consentRequired }
         guard appToken != nil else { throw GeoPrefixError.tokenRequired }
+        guard ["30_days", "history"].contains(retention) else { throw GeoPrefixError.invalidInput }
         try validate(latitude, longitude)
         guard accuracyMeters.isFinite && accuracyMeters >= 0 else { throw GeoPrefixError.invalidInput }
         return try await request("/api/observations", body: [
@@ -61,7 +62,7 @@ public struct GeoPrefixClient: Sendable {
             "accuracy_m": .number(accuracyMeters + 8000),
             "reported_accuracy_m": .number(accuracyMeters),
             "captured_at": .string(ISO8601DateFormatter().string(from: capturedAt)),
-            "source": .string("native"), "provider": .string(provider), "consent": .bool(true)])
+            "source": .string("native"), "provider": .string(provider), "consent": .bool(true), "retention": .string(retention)])
     }
     private func validate(_ latitude: Double, _ longitude: Double) throws {
         guard latitude.isFinite && longitude.isFinite && (-90...90).contains(latitude) && (-180...180).contains(longitude)

@@ -10,12 +10,14 @@ Use Python 3.10+ and install requirements.txt, then run `uvicorn server.app:app 
 
 ## What works
 
-- IPv4/IPv6 lookup, coordinate/radius search, JSON/CSV CC0 exports with 40 explicit columns.
+- IPv4/IPv6 lookup, coordinate/radius search, JSON/CSV CC0 exports with 45 explicit columns.
 - Public app-token registration, origin controls, per-minute and monthly limits, disclosed coarse contribution and deletion receipts.
-- Prefix consensus requiring five distinct address observations across two days. Unsupported, conflicting and sparse ranges return unknown.
-- 20% randomized holdouts never train the map; accuracy reports show sample sizes and limitations.
+- Observer-balanced history requiring five distinct public addresses across two days. Sparse ranges return unknown; dispersed blocks remain published with their wider uncertainty radius and spread metrics.
+- New addresses use a stable 20% holdout split across repeat visits. Accuracy reports separate prediction error from descriptive location spread, and reduce repeat-visit bias by grouping evaluations per address/day. Legacy launch samples retain their original split.
 - JavaScript browser location with automatic contribution after disclosed agreement and IP fallback on denial/unavailability; native and server client packages under sdks/.
-- Country/continent enrichment from public-domain Natural Earth boundaries. Border geometry is coarse. Unsupported city, timezone, ASN and risk fields remain null, not guessed.
+- Country/continent enrichment for compact estimates from public-domain Natural Earth boundaries. Border geometry is coarse. Unsupported city, timezone, ASN and risk fields remain null, not guessed.
+
+The homepage uses the shipped JavaScript SDK, asks for contribution agreement on arrival, then requests browser location. Decline/unavailability falls back through the same SDK. Lookup, reverse search, app registration and other tools are at `/tools.html`. Individual observation history stays private; public downloads contain network summaries. The homepage keeps deletion receipts in local browser storage.
 
 ## Honest launch state
 
@@ -25,7 +27,7 @@ High-volume managed hosting is the planned revenue model; software and complete 
 
 ## Deploy with Coolify
 
-Create a public Git application using the Dockerfile, internal port 8000 and health path /health. Mount a persistent volume at /data. Use a temporary HTTPS domain initially. Set TRUST_PROXY_CIDRS to the actual immediate reverse-proxy address(es) only after inspecting the deployment topology. Do not trust arbitrary forwarding headers or set 0.0.0.0/0. Traefik must append its real external peer to X-Forwarded-For; the app accepts CF-Connecting-IP only when that external peer is Cloudflare. Direct-origin visitor headers cannot impersonate Cloudflare. The app disables Uvicorn proxy-header rewriting deliberately, so the source socket is available for validation. Revalidate proxy addresses after infrastructure changes. Retention cleanup runs hourly and on aggregate reads; samples age out after 30 days, with up to an hour of scheduling delay.
+Create a public Git application using the Dockerfile, internal port 8000 and health path /health. Mount a persistent volume at /data. Use a temporary HTTPS domain initially. Set TRUST_PROXY_CIDRS to the actual immediate reverse-proxy address(es) only after inspecting the deployment topology. Do not trust arbitrary forwarding headers or set 0.0.0.0/0. Traefik must append its real external peer to X-Forwarded-For; the app accepts CF-Connecting-IP only when that external peer is Cloudflare. Direct-origin visitor headers cannot impersonate Cloudflare. The app disables Uvicorn proxy-header rewriting deliberately, so the source socket is available for validation. Revalidate proxy addresses after infrastructure changes. History contributions remain until withdrawn. Every distinct capture is retained, including repeated visits and quarantined connection types. The API defaults to the legacy `retention: "30_days"`; new host apps must disclose continuing retention and explicitly send `retention: "history"`. Cleanup still honors the original 30-day agreement for legacy records, with up to an hour of scheduling delay. Database migrations preserve existing records and their retention policy.
 
 ## Tests
 

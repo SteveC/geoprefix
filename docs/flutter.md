@@ -26,7 +26,7 @@ Follow the maintained [geolocator platform setup](https://pub.dev/packages/geolo
 
 The host app owns the disclosure and consent flow. A native location permission prompt does not explain third-party data contribution and is not sufficient by itself. Use a notice appropriate to the app and its audience before calling the helper. For example:
 
-> Use your location for this feature and help improve GeoPrefix's public network map. If location succeeds, the app will automatically send GeoPrefix a rounded location and reported uncertainty. GeoPrefix observes your connection's public IP, stores a coarse observation for 30 days (with up to one hour for cleanup), and may publish network summaries under CC0. If location access is declined or unavailable, the app will request an approximate IP-based estimate instead. Precise coordinates are not contributed.
+> Use your location for this feature and help improve GeoPrefix's public network map. If location succeeds, the app will automatically send GeoPrefix a rounded location and reported uncertainty. GeoPrefix observes your connection's public IP, keeps each rounded observation in private history until you withdraw it, and may publish network summaries under CC0. If location access is declined or unavailable, the app will request an approximate IP-based estimate instead. Precise coordinates are not contributed.
 
 Only pass `informedContributionConsent: true` after the user agrees to that disclosed behavior. If they decline this notice, keep the contribution disabled and use the app's normal alternative. Include access to the service's [contribution notice](https://geoprefix-preview.goodspider.net/privacy) in the host app.
 
@@ -96,6 +96,7 @@ Future<AppLocation> locateAndContribute(
       accuracyM: position.accuracy,
       capturedAt: position.timestamp,
       consent: true,
+      retention: 'history',
       source: GeoPrefixObservationSource.native,
       provider: 'unknown',
       networkType: GeoPrefixNetworkType.unknown,
@@ -133,7 +134,7 @@ The native provider may derive a position from GPS, Wi-Fi, cellular information 
 
 ## Data, error handling, and withdrawal
 
-Coordinates are rounded to a 0.1° grid before upload, roughly 11 km north/south. The SDK adds an 8 km rounding allowance to the uncertainty radius and keeps provider-reported accuracy separate. A token and `consent: true` are required. Values outside latitude/longitude ranges, nonfinite numbers, an inflated accuracy above the API limit, and stale timestamps are rejected before transmission.
+Coordinates are rounded to a 0.1° grid before upload, roughly 11 km north/south. The SDK adds an 8 km rounding allowance to the uncertainty radius and keeps provider-reported accuracy separate. A token and `consent: true` are required. The example explicitly selects `retention: 'history'` after disclosing continuing retention; the SDK default remains `30_days` for compatibility with existing notices. Values outside latitude/longitude ranges, nonfinite numbers, an inflated accuracy above the API limit, and stale timestamps are rejected before transmission.
 
 `GeoPrefixException.kind` distinguishes validation, HTTP, network, timeout, response-format and closed-client failures. HTTP failures expose `statusCode`. Methods do not retry automatically. If a request times out, the server may already have received it.
 

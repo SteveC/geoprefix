@@ -79,3 +79,40 @@ test('fallback service failure is reported, not fabricated as a position', async
   globalThis.fetch = async () => response({ detail: 'dataset unavailable' }, 503);
   await assert.rejects(new GeoPrefix().getLocation(), /dataset unavailable/);
 });
+test('website demo uses our SDK to retain consented history without an app token', async () => {
+  browser(success => success(point));
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, '/api/demo/observations');
+    assert.equal(options.headers.Authorization, undefined);
+    const body = JSON.parse(options.body);
+    assert.equal(body.retention, 'history'); assert.equal(body.consent, true);
+    assert.equal(body.latitude, 40.7); assert.equal(body.longitude, -74);
+    return response({ id: 'saved', status: 'accepted', contribution_receipt: 'receipt' });
+  };
+  const result = await new GeoPrefix({ websiteDemo: true, contributionConsent: true, retention: 'history' }).getLocation();
+  assert.equal(result.contribution.receipt.id, 'saved');
+});
+test('website demo denial submits no point and falls back through the SDK', async () => {
+  browser((_, failure) => failure({ code: 1 }));
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, '/api/lookup'); assert.equal(options.method, 'GET');
+    return response({ status: 'unknown' });
+  };
+  const result = await new GeoPrefix({ websiteDemo: true, contributionConsent: true, retention: 'history' }).getLocation();
+  assert.equal(result.source, 'ip'); assert.equal(result.contribution.status, 'not_applicable');
+});
+test('legacy retention stays default and receipts authorize withdrawal', async () => {
+  const client = new GeoPrefix();
+  assert.equal(client.retention, '30_days');
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, '/api/observations/point-id');
+    assert.equal(options.method, 'DELETE');
+    assert.equal(options.headers['X-Contribution-Receipt'], 'private-receipt');
+    assert.equal(options.headers.Authorization, undefined);
+    return response({ status: 'deleted' });
+  };
+  assert.equal((await client.withdraw({id:'point-id',contribution_receipt:'private-receipt'})).status,'deleted');
+});
+test('website demo cannot target another origin', () => {
+  assert.throws(() => new GeoPrefix({endpoint:'https://other.example',websiteDemo:true}), /same origin/);
+});

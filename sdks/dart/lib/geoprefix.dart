@@ -127,6 +127,7 @@ class GeoPrefixClient {
     required double longitude,
     required double accuracyM,
     required bool consent,
+    String retention = '30_days',
     DateTime? capturedAt,
     GeoPrefixObservationSource source = GeoPrefixObservationSource.native,
     String provider = 'unknown',
@@ -142,6 +143,12 @@ class GeoPrefixClient {
       throw const GeoPrefixException(
         GeoPrefixErrorKind.validation,
         'A scoped application token is required for contributions.',
+      );
+    }
+    if (!['30_days', 'history'].contains(retention)) {
+      throw const GeoPrefixException(
+        GeoPrefixErrorKind.validation,
+        'retention must be 30_days or history.',
       );
     }
     _validateCoordinates(latitude, longitude);
@@ -176,6 +183,7 @@ class GeoPrefixClient {
         'reported_accuracy_m': accuracyM,
         'captured_at': captured.toIso8601String(),
         'consent': true,
+        'retention': retention,
         'source': source.name,
         'provider': provider,
         'network_type': networkType.name,

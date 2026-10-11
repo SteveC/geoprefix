@@ -21,6 +21,7 @@ jobs:
           node-version: '22'
       - run: node --test sdks/javascript/geoprefix.test.js
       - run: node --check web/app.js
+      - run: node --check web/tools.js
   dart:
     runs-on: ubuntu-latest
     steps:

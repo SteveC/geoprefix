@@ -1,20 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 /** A browser location is an observation, not verified GPS ground truth. */
 export class GeoPrefix {
-  constructor({ endpoint = '', appToken, contributionConsent = false, fallback = true, timeout = 8000 } = {}) {
+  constructor({ endpoint = '', appToken, contributionConsent = false, fallback = true, timeout = 8000, websiteDemo = false, retention = '30_days' } = {}) {
     this.endpoint = endpoint.replace(/\/$/, '');
     this.appToken = appToken;
     this.contributionConsent = contributionConsent === true;
     this.fallback = fallback;
     this.timeout = timeout;
+    this.websiteDemo = websiteDemo === true;
+    this.retention = retention;
+    if (!['30_days', 'history'].includes(retention)) throw new TypeError('retention must be 30_days or history');
+    if (this.websiteDemo && endpoint && new URL(endpoint, globalThis.location?.href).origin !== globalThis.location?.origin) {
+      throw new Error('The website demo requires the same origin');
+    }
     if (!Number.isFinite(timeout) || timeout <= 0) throw new TypeError('timeout must be positive');
   }
 
-  async request(path, { method = 'GET', body, token = Boolean(this.appToken) } = {}) {
+  async request(path, { method = 'GET', body, token = Boolean(this.appToken), headers: extraHeaders = {} } = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeout);
     try {
-      const headers = { Accept: 'application/json' };
+      const headers = { Accept: 'application/json', ...extraHeaders };
       if (body) headers['Content-Type'] = 'application/json';
       if (token) headers.Authorization = `Bearer ${this.appToken}`;
       const response = await fetch(`${this.endpoint}${path}`, {
@@ -31,6 +37,15 @@ export class GeoPrefix {
     return this.request(`/api/lookup${ip ? `?ip=${encodeURIComponent(ip)}` : ''}`);
   }
 
+  withdraw({ id, contribution_receipt }) {
+    if (typeof id !== 'string' || !id || typeof contribution_receipt !== 'string' || !contribution_receipt) {
+      throw new TypeError('An observation ID and deletion receipt are required');
+    }
+    return this.request(`/api/observations/${encodeURIComponent(id)}`, {
+      method: 'DELETE', token: false, headers: { 'X-Contribution-Receipt': contribution_receipt },
+    });
+  }
+
   reverse({ latitude, longitude, radius_km = 25 }) {
     validateCoordinates(latitude, longitude);
     if (!Number.isFinite(radius_km) || radius_km <= 0) throw new TypeError('radius_km must be positive');
@@ -40,18 +55,19 @@ export class GeoPrefix {
 
   /** Host must disclose third-party contribution and obtain permission first. */
   contribute({ latitude, longitude, accuracy_m, captured_at = new Date().toISOString(), consent, installation_id,
-    source = 'browser', provider = 'unknown', reported_accuracy_m = accuracy_m }) {
+    source = 'browser', provider = 'unknown', reported_accuracy_m = accuracy_m, retention = this.retention }) {
     if (consent !== true) throw new Error('Explicit contribution consent is required');
-    if (!this.appToken) throw new Error('A public, scoped application token is required');
+    if (!this.appToken && !this.websiteDemo) throw new Error('A public, scoped application token is required');
+    if (!['30_days', 'history'].includes(retention)) throw new TypeError('retention must be 30_days or history');
     validateCoordinates(latitude, longitude);
     if (!Number.isFinite(accuracy_m) || accuracy_m < 0) throw new TypeError('accuracy_m must be non-negative');
     if (!Number.isFinite(Date.parse(captured_at))) throw new TypeError('captured_at must be an ISO timestamp');
     const body = {
       latitude: roundCoordinate(latitude), longitude: roundCoordinate(longitude),
-      accuracy_m: accuracy_m + 8000, reported_accuracy_m, source, provider, captured_at, consent: true,
+      accuracy_m: accuracy_m + 8000, reported_accuracy_m, source, provider, captured_at, consent: true, retention,
     };
     if (installation_id) body.installation_id = installation_id;
-    return this.request('/api/observations', { method: 'POST', body, token: true });
+    return this.request(this.appToken ? '/api/observations' : '/api/demo/observations', { method: 'POST', body, token: Boolean(this.appToken) });
   }
 
   async getLocation() {
@@ -73,7 +89,7 @@ export class GeoPrefix {
       captured_at: new Date(position.timestamp || Date.now()).toISOString(),
       contribution: { status: this.contributionConsent ? 'missing_app_token' : 'disabled' },
     };
-    if (this.contributionConsent && this.appToken) {
+    if (this.contributionConsent && (this.appToken || this.websiteDemo)) {
       try {
         const receipt = await this.contribute({ ...result, consent: true });
         result.contribution = { status: 'submitted', receipt };

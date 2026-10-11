@@ -28,9 +28,10 @@ class GeoPrefixClient(endpoint: String, private val appToken: String? = null) {
 
     /** Contribution requires separate explicit permission, beyond native location access. */
     suspend fun contribute(latitude: Double, longitude: Double, accuracyMeters: Double,
-                           consent: Boolean, capturedAt: Date = Date(), provider: String = "unknown"): JSONObject {
+                           consent: Boolean, capturedAt: Date = Date(), provider: String = "unknown", retention: String = "30_days"): JSONObject {
         require(consent) { "Explicit contribution consent is required" }
         require(!appToken.isNullOrBlank()) { "A scoped application token is required" }
+        require(retention in listOf("30_days", "history")) { "retention must be 30_days or history" }
         validate(latitude, longitude)
         require(accuracyMeters.isFinite() && accuracyMeters >= 0) { "accuracyMeters must be non-negative" }
         val timestamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
@@ -42,7 +43,7 @@ class GeoPrefixClient(endpoint: String, private val appToken: String? = null) {
             .put("accuracy_m", accuracyMeters + 8000)
             .put("reported_accuracy_m", accuracyMeters)
             .put("captured_at", timestamp).put("source", "native")
-            .put("provider", provider).put("consent", true))
+            .put("provider", provider).put("consent", true).put("retention", retention))
     }
 
     private fun validate(latitude: Double, longitude: Double) {

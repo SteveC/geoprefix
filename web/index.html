@@ -3,141 +3,60 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#132b35">
-  <meta name="description" content="GeoPrefix is an open, community-built atlas of IP network locations. Look up an IP, explore public evidence, and contribute with consent.">
-  <title>GeoPrefix — An open map of the internet</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23132b35'/%3E%3Cpath d='M11 11h18v18H11zM20 7v26M7 20h26' fill='none' stroke='%23b8e0b1' stroke-width='2'/%3E%3Ccircle cx='20' cy='20' r='4' fill='%23b8e0b1'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/styles.css">
-  <script type="module" src="/app.js"></script>
+  <meta name="description" content="Free IP geolocation. Share a location observation, compare it with an IP estimate, and download the public-domain database.">
+  <title>GeoPrefix — IP geolocation</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ctext y='30' font-size='30'%3EG%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css?v=0.2.0">
+  <script type="module" src="/app.js?v=0.2.0"></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <svg class="icon-definitions" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
-    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
-    <symbol id="icon-crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></symbol>
-    <symbol id="icon-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 7h14M5 17h14"/></symbol>
-    <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5"/></symbol>
-    <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
-    <symbol id="icon-code" viewBox="0 0 24 24"><path d="m7 6-6 6 6 6m10-12 6 6-6 6M14 3l-4 18"/></symbol>
-    <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V3H3v13h5"/></symbol>
-    <symbol id="icon-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
-  </defs></svg>
-  <header class="site-header">
-    <div class="header-inner">
-      <a class="brand" href="#lookup" aria-label="GeoPrefix home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M10 10h20v20H10zM20 5v30M5 20h30"/><circle cx="20" cy="20" r="4"/></svg></span><span>Geo<span class="brand-light">Prefix</span><span class="brand-subtitle">THE OPEN INTERNET ATLAS</span></span></a>
-      <div class="header-right"><span class="alpha-badge">Public alpha</span><a class="header-link" href="/docs">API reference <span aria-hidden="true">↗</span></a></div>
-    </div>
-  </header>
-  <main id="main" class="main-shell" tabindex="-1">
-    <section class="intro" aria-labelledby="page-heading">
-      <div><p class="eyebrow"><span class="small-line"></span> COMMUNITY BUILT. EVIDENCE FIRST.</p><h1 id="page-heading">An open map of<br>the <em>internet.</em></h1></div>
-      <div class="intro-side"><p>IP addresses tell part of the story.<br>We’re building the map together.</p><div class="connection-status" id="connection-status" role="status"><span class="status-dot"></span><span>Connecting to the atlas</span></div></div>
+  <a class="skip" href="#main">Skip to content</a>
+  <header><a class="wordmark" href="/">GeoPrefix</a><span class="alpha">alpha</span><nav aria-label="Main navigation"><a href="/tools.html#lookup">Look up an IP</a><a href="#data">Data</a><a href="/tools.html#developers">SDKs</a><a href="https://github.com/SteveC/geoprefix">Source</a></nav></header>
+  <main id="main">
+    <h1>IP geolocation.</h1>
+    <p class="lede">A free, public-domain database built from location observations.</p>
+    <section aria-labelledby="your-location">
+      <div class="section-heading"><h2 id="your-location">Your location</h2><button type="button" id="share-location">Share my location</button></div>
+      <p id="location-status" class="status" role="status">Share your browser location to compare it with your IP estimate and add an observation.</p>
+      <dl id="location-values">
+        <div><dt>Public IP</dt><dd id="my-ip">Loading…</dd></div>
+        <div><dt>Network block</dt><dd id="my-network">Loading…</dd></div>
+        <div><dt>Browser location</dt><dd id="browser-location">Not shared</dd></div>
+        <div><dt>IP estimate</dt><dd id="ip-location">Loading…</dd></div>
+        <div><dt>IP uncertainty radius</dt><dd id="ip-radius">—</dd></div>
+        <div><dt>Browser ↔ IP distance</dt><dd id="comparison-distance">—</dd></div>
+      </dl>
+      <p id="network-detail" class="note"></p>
+      <p class="note">This page uses <a href="/sdk/geoprefix.js">our JavaScript SDK</a>. If browser location is declined or unavailable, it falls back to an IP lookup and sends no location observation.</p>
     </section>
-    <div class="workspace-tabs" role="tablist" aria-label="Atlas tools">
-      <button id="tab-lookup" role="tab" aria-selected="true" aria-controls="panel-lookup" tabindex="0" data-tab="lookup"><svg class="icon" aria-hidden="true"><use href="#icon-crosshair"/></svg>Lookup</button>
-      <button id="tab-explore" role="tab" aria-selected="false" aria-controls="panel-explore" tabindex="-1" data-tab="explore"><svg class="icon" aria-hidden="true"><use href="#icon-globe"/></svg>Explore</button>
-      <button id="tab-dataset" role="tab" aria-selected="false" aria-controls="panel-dataset" tabindex="-1" data-tab="dataset"><svg class="icon" aria-hidden="true"><use href="#icon-download"/></svg>Dataset</button>
-      <button id="tab-accuracy" role="tab" aria-selected="false" aria-controls="panel-accuracy" tabindex="-1" data-tab="accuracy"><svg class="icon" aria-hidden="true"><use href="#icon-check"/></svg>Accuracy</button>
-      <button id="tab-developers" role="tab" aria-selected="false" aria-controls="panel-developers" tabindex="-1" data-tab="developers"><svg class="icon" aria-hidden="true"><use href="#icon-code"/></svg>Developers</button>
-    </div>
-
-    <section id="panel-lookup" class="tab-panel" role="tabpanel" aria-labelledby="tab-lookup">
-      <div class="lookup-grid">
-        <article class="card lookup-card">
-          <div class="section-label"><span>01 / IP LOOKUP</span><span class="tiny-pill">IPv4 + IPv6</span></div>
-          <h2>Where is this IP?</h2>
-          <p class="muted measure">Find a network’s approximate location, with the evidence and uncertainty behind it.</p>
-          <form id="lookup-form" class="lookup-form">
-            <label for="ip-input">IP address</label>
-            <div class="input-action"><input id="ip-input" name="ip" type="text" placeholder="Enter an IPv4 or IPv6 address" autocomplete="off" spellcheck="false" required aria-describedby="lookup-help"><button class="primary-button" type="submit" id="lookup-button">Look up <svg class="icon" aria-hidden="true"><use href="#icon-arrow"/></svg></button></div>
-            <div class="form-between"><p id="lookup-help" class="field-note">An estimate of a network, never a street address.</p><button type="button" class="text-button" id="my-ip-button"><svg class="icon" aria-hidden="true"><use href="#icon-crosshair"/></svg>Use my IP</button></div>
-          </form>
-          <div id="lookup-result" class="lookup-result" aria-live="polite"><div class="empty-result"><span class="empty-icon"><svg class="icon" aria-hidden="true"><use href="#icon-pin"/></svg></span><div><h3>Every location needs evidence.</h3><p>Enter an IP to see what the community knows. If there isn’t enough data, we’ll say so.</p></div></div></div>
-        </article>
-        <article class="map-card" aria-labelledby="map-heading">
-          <div class="map-card-top"><div><span class="map-overline">THE PUBLIC ATLAS</span><h2 id="map-heading">A world taking shape.</h2></div><span class="map-corner" aria-hidden="true">+<br>+</span></div>
-          <div class="map-viewport">
-            <svg id="world-map" class="world-map" viewBox="0 0 1000 500" role="img" aria-label="Illustrative world map. No location selected.">
-              <defs><pattern id="map-grid" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M50 0H0v50" fill="none" stroke="#a6c8b8" stroke-opacity=".14" stroke-width="1"/></pattern></defs>
-              <rect width="1000" height="500" fill="url(#map-grid)"/>
-              <g fill="#31504f" stroke="#93b7a0" stroke-opacity=".18" stroke-width="1.5">
-                <path d="m57 113 45-32 46-8 29-18 54 11 32 27-15 29-30 6-18 33-28 21-10 31-32-7-17-28-25-16-22-27-26-4Z"/><path d="m144 214 27 7 19 29 26 8 18 27 37 11-2 34-19 23-9 35-24 42-15-5-5-36-17-32-8-39-16-29-5-30Z"/>
-                <path d="m264 48 30-25 42 2 18 22-18 38-33 17-23-14Z"/>
-                <path d="m430 114 20-24 26-1 15 15 26-1 26 18-14 23-25 7-14 23-24-3-16-28-22-8Z"/><path d="m457 179 43-18 37 12 32 35-10 38-27 24-10 40-23 36-16-7-10-39-29-38-6-41Z"/>
-                <path d="m512 101 42-26 60-7 29-17 71 18 37 1 33 23 66 4 32 28-20 26-43 3-13 27-31-3-32 19-21-9-22 25-25-9-22-30-31 4-16-24-31-3-9-17-29 1Z"/><path d="m611 181 28-1 21 25-10 37-15 5-14-29Z"/><path d="m691 196 20-4 18 29 16 15-1 32-14-5-8-27-20-14Z"/><path d="m758 268 22 11 27 3 13 14-34 4-22-15Z"/>
-                <path d="m784 325 35-16 41 14 20 29-10 31-34 5-31-17-27-13Z"/><path d="m910 376 15 4-10 23-14 7Z"/><path d="m567 304 9 10-6 27-10-2Z"/><path d="m840 164 9 5-4 29-9 9-6-8Z"/>
-              </g>
-              <path d="M0 250h1000" stroke="#b5d6bd" stroke-opacity=".24" stroke-dasharray="4 7"/>
-              <g id="map-location" hidden><circle id="map-radius" cx="500" cy="250" r="35" fill="#c5e7b3" fill-opacity=".12" stroke="#c5e7b3" stroke-opacity=".55" stroke-dasharray="5 5"/><circle id="map-marker-halo" cx="500" cy="250" r="12" fill="#c5e7b3" fill-opacity=".2"/><circle id="map-marker" cx="500" cy="250" r="5" fill="#d0edbe" stroke="#142d36" stroke-width="2"/></g>
-            </svg>
-            <div class="map-coordinate" id="map-coordinate">NO LOCATION SELECTED</div>
-          </div>
-          <div class="map-bottom"><span><span class="legend-dot"></span><span id="map-legend">Approximate network locations</span></span><span class="map-disclaimer">Illustrative projection</span></div>
-        </article>
-      </div>
-      <div class="stat-strip" aria-label="Live atlas statistics">
-        <div class="stat"><span class="stat-label">Published networks</span><strong data-stat="published_networks">—</strong><span class="stat-description">Open data, freely downloadable</span></div>
-        <div class="stat"><span class="stat-label">Countries covered</span><strong data-stat="countries">—</strong><span class="stat-description">Grows with contributions</span></div>
-        <div class="stat"><span class="stat-label">Community observations</span><strong data-stat="observations">—</strong><span class="stat-description">Consented location evidence</span></div>
-        <div class="stat"><span class="stat-label">Held-out error</span><strong id="overview-error">—</strong><span class="stat-description" id="overview-error-description">Median distance, when measured</span></div>
-      </div>
-      <section class="contribute-banner" aria-labelledby="contribute-heading">
-        <div class="contribute-intro"><span class="contribute-illustration" aria-hidden="true"><svg viewBox="0 0 80 80"><circle cx="40" cy="40" r="27"/><path d="M40 3v18m0 38v18M3 40h18m38 0h18"/><path d="m30 40 7 7 15-16"/></svg></span><div><p class="eyebrow">A SMALL CONTRIBUTION. A BETTER MAP.</p><h2 id="contribute-heading">Put your network on the map.</h2><p>Your contribution helps make location data a public resource.</p></div></div>
-        <div class="contribute-controls"><label class="consent-label"><input type="checkbox" id="contribution-consent"><span>I agree to contribute my public IP and approximate location. Coordinates are rounded to a roughly 11 km grid before sending. Network summaries may be published under CC0.</span></label><button type="button" class="dark-button" id="contribute-button" disabled>Contribute my location <svg class="icon" aria-hidden="true"><use href="#icon-arrow"/></svg></button><p class="field-note">Your browser will ask for location access. If you decline, we’ll try an IP lookup and send no location contribution. Coarse observations expire after 30 days; hourly cleanup may add up to an hour. Skip contributions when using a VPN or relay. <a href="/privacy">Read the contribution notice.</a></p><p id="contribution-status" class="form-status" role="status"></p><div id="contribution-receipt" class="receipt-box" hidden><p>Keep a copy of your deletion receipt before leaving. You can withdraw this observation from future exports.</p><div><button type="button" class="text-button" id="copy-receipt">Copy deletion receipt</button><button type="button" class="text-button" id="withdraw-contribution">Withdraw this contribution</button></div></div></div>
-      </section>
-      <div class="principles"><div><span>01</span><h3>Open by design</h3><p>Public network summaries are available as CC0 data. Build with them, improve them, share them.</p></div><div><span>02</span><h3>Permission comes first</h3><p>Using this lookup does not request GPS. Location contributions start with an explicit choice.</p></div><div><span>03</span><h3>Uncertainty included</h3><p>IP locations are estimates. Each result carries an accuracy radius and the age of its evidence.</p></div></div>
+    <section aria-labelledby="history-heading">
+      <h2 id="history-heading">Your contributions</h2>
+      <p class="note">Receipts saved in this browser let you remove your observations. The full observation history stays private on the server.</p>
+      <p id="history-empty">No contributions saved in this browser.</p>
+      <div class="table-scroll" id="history-table-wrap" hidden><table><thead><tr><th scope="col">Captured (UTC)</th><th scope="col">Rounded location</th><th scope="col">Status</th><th scope="col">Receipt</th></tr></thead><tbody id="history-rows"></tbody></table></div>
+      <button type="button" class="secondary" id="download-receipts" hidden>Save deletion receipts</button>
+      <p class="status" id="receipt-status" role="status"></p>
     </section>
-
-    <section id="panel-explore" class="tab-panel" role="tabpanel" aria-labelledby="tab-explore" hidden>
-      <div class="page-title-row"><div><p class="eyebrow">02 / REVERSE LOOKUP</p><h2>Start with a place.</h2><p class="muted">Find published network prefixes whose estimated locations overlap an area.</p></div><span class="section-tag">Places → networks</span></div>
-      <article class="card"><form id="reverse-form" class="reverse-form"><div class="form-field"><label for="latitude">Latitude</label><input id="latitude" type="number" min="-90" max="90" step="any" placeholder="40.7128" required></div><div class="form-field"><label for="longitude">Longitude</label><input id="longitude" type="number" min="-180" max="180" step="any" placeholder="-74.0060" required></div><div class="form-field"><label for="radius">Radius (km)</label><input id="radius" type="number" min="1" max="1000" value="100" required></div><button type="submit" class="primary-button" id="reverse-button">Find networks <svg class="icon" aria-hidden="true"><use href="#icon-arrow"/></svg></button></form><p class="field-note">A geographic search of our published estimates. Results describe networks, not people or individual devices.</p></article>
-      <article class="card results-card"><div class="section-label"><span>NETWORKS IN THIS AREA</span><span id="reverse-count">No search yet</span></div><div id="reverse-results" aria-live="polite"><div class="large-empty"><svg class="icon" aria-hidden="true"><use href="#icon-globe"/></svg><h3>A different way to explore the internet.</h3><p>Choose coordinates and a radius to see the network evidence available nearby.</p></div></div></article>
-    </section>
-
-    <section id="panel-dataset" class="tab-panel" role="tabpanel" aria-labelledby="tab-dataset" hidden>
-      <div class="page-title-row"><div><p class="eyebrow">03 / THE PUBLIC DATASET</p><h2>The atlas belongs to everyone.</h2><p class="muted">Download the latest public network summaries. No account needed.</p></div><span class="license-badge">CC0 1.0 <span aria-hidden="true">↗</span></span></div>
-      <div class="dataset-layout"><article class="card download-card"><span class="download-icon"><svg class="icon" aria-hidden="true"><use href="#icon-download"/></svg></span><h3>Take the map with you.</h3><p class="muted">Machine-readable network prefixes, approximate locations, uncertainty, and evidence timestamps.</p><div class="download-actions"><a class="primary-button" href="/api/dataset.csv" download>Download CSV <svg class="icon" aria-hidden="true"><use href="#icon-download"/></svg></a><a class="outline-button" href="/api/dataset.json" download>Download JSON <svg class="icon" aria-hidden="true"><use href="#icon-download"/></svg></a></div><p class="field-note" id="dataset-updated">Checking the latest snapshot…</p><p class="field-note">An empty dataset downloads with its schema. No location data is invented to fill gaps.</p></article><article class="card dataset-facts"><div><span>IPv4 networks</span><strong data-stat="ipv4_networks">—</strong></div><div><span>IPv6 networks</span><strong data-stat="ipv6_networks">—</strong></div><div><span>Public license</span><strong>CC0 1.0</strong></div><div><span>Exact GPS observations</span><strong>Never in this export</strong></div><a class="inline-link" href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">Read the public domain dedication <span aria-hidden="true">↗</span></a></article></div>
-      <article class="card results-card"><div class="section-label"><span>LATEST PUBLISHED NETWORKS</span><span id="dataset-count">Loading</span></div><div id="dataset-table"><div class="large-empty"><h3>Loading the public atlas…</h3></div></div></article>
-      <section class="sustainability"><div><p class="eyebrow">SMALL BUSINESS. PUBLIC RESOURCE.</p><h3>Built to stay open.</h3><p>Public data and an open SDK form the foundation. Managed service, private deployments, and support can keep the project sustainable.</p></div><div class="revenue-progress"><div><span>Monthly recurring revenue</span><strong id="mrr-label">— / $1,000</strong></div><div class="progress-track" role="progressbar" aria-label="Monthly recurring revenue toward $1,000 goal" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="0" id="mrr-progress"><span></span></div><p class="field-note">Project goal, not a statement of current paid product availability.</p></div></section>
-      <section class="card interest-card" aria-labelledby="interest-heading">
-        <div><p class="eyebrow">HELP SHAPE THE SERVICE</p><h3 id="interest-heading">What would your team need?</h3><p class="muted">Register interest in managed hosting, a dedicated deployment, or support. Your response helps us decide what to build next.</p><p class="interest-disclosure">Paid plans are not active yet; no payment is taken.</p></div>
-        <form id="interest-form" class="interest-form">
-          <div class="form-field"><label for="interest-organization">Organization</label><input id="interest-organization" name="organization" autocomplete="organization" maxlength="100" placeholder="Your organization" required></div>
-          <div class="form-field"><label for="interest-email">Work email</label><input id="interest-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="200" placeholder="you@example.com" required></div>
-          <div class="form-field"><label for="interest-plan">Interested in</label><select id="interest-plan" name="plan" required><option value="managed">Managed service</option><option value="dedicated">Dedicated deployment</option><option value="support">Support</option></select></div>
-          <button type="submit" class="primary-button" id="interest-button">Register interest <svg class="icon" aria-hidden="true"><use href="#icon-arrow"/></svg></button>
-          <p class="field-note interest-privacy">We store your organization, email, and selected plan for this request. <a href="/privacy">Privacy notice</a></p>
-          <p id="interest-status" class="form-status" role="status"></p>
-        </form>
-      </section>
-    </section>
-
-    <section id="panel-accuracy" class="tab-panel" role="tabpanel" aria-labelledby="tab-accuracy" hidden>
-      <div class="page-title-row"><div><p class="eyebrow">04 / MEASUREMENT</p><h2>Confidence is part of the result.</h2><p class="muted">Held-out evaluation, kept separate from the observations used to build an estimate.</p></div><span class="section-tag">Evidence over precision</span></div>
-      <div class="accuracy-metrics"><article class="card"><span class="stat-label">Held-out evaluations</span><strong data-stat="independent_evaluations">—</strong><p>Observations held out from their evaluated estimate</p></article><article class="card"><span class="stat-label">Median distance error</span><strong id="accuracy-median">—</strong><p>Half the evaluated estimates fall within this distance</p></article><article class="card"><span class="stat-label">90th percentile error</span><strong id="accuracy-p90">—</strong><p>Nine in ten evaluated estimates fall within this distance</p></article></div>
-      <article class="card accuracy-report"><div class="section-label"><span>LIVE EVALUATION REPORT</span><span id="accuracy-status">Loading</span></div><div id="accuracy-report"><div class="large-empty"><h3>Loading evaluation evidence…</h3></div></div><p id="accuracy-methodology" class="evaluation-note"></p></article>
-      <div class="methodology-grid"><article><span class="method-number">01</span><h3>Separate the evidence</h3><p>Evaluating an estimate against the same observations that created it can overstate accuracy. Independent results need held-out evidence.</p></article><article><span class="method-number">02</span><h3>Keep the radius</h3><p>A map pin represents an area. Uncertainty grows for sparse observations, mobile networks, VPNs, and networks used in several places.</p></article><article><span class="method-number">03</span><h3>Show what is unknown</h3><p>No observed accuracy means no accuracy claim. Global percentages need representative coverage, not just a successful local test.</p></article></div>
-    </section>
-
-    <section id="panel-developers" class="tab-panel" role="tabpanel" aria-labelledby="tab-developers" hidden>
-      <div class="page-title-row"><div><p class="eyebrow">05 / DEVELOPERS</p><h2>One request. A thoughtful fallback.</h2><p class="muted">Ask for browser location with a clear notice, then use an approximate IP estimate if access is declined or unavailable.</p></div><a class="outline-button" href="/docs">API reference <span aria-hidden="true">↗</span></a></div>
-
-      <section class="sdk-section" aria-labelledby="sdk-heading">
-        <div class="sdk-title-row"><h3 id="sdk-heading">Choose your platform.</h3><span>Open source · Apache-2.0</span></div>
-        <div class="sdk-grid">
-          <a class="sdk-card" href="https://github.com/SteveC/geoprefix/tree/main/sdks/javascript" target="_blank" rel="noopener noreferrer"><span class="sdk-platform">WEB</span><h4>JavaScript / TypeScript</h4><p>Browser location &amp; IP fallback</p><span class="sdk-card-link">View SDK <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span></span></a>
-          <a class="sdk-card" href="https://github.com/SteveC/geoprefix/tree/main/sdks/swift" target="_blank" rel="noopener noreferrer"><span class="sdk-platform">APPLE</span><h4>Swift / iOS</h4><p>Native Apple API client</p><span class="sdk-card-link">View SDK <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span></span></a>
-          <a class="sdk-card" href="https://github.com/SteveC/geoprefix/tree/main/sdks/android" target="_blank" rel="noopener noreferrer"><span class="sdk-platform">ANDROID</span><h4>Android / Kotlin</h4><p>Native Android API client</p><span class="sdk-card-link">View SDK <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span></span></a>
-          <a class="sdk-card" href="https://github.com/SteveC/geoprefix/tree/main/sdks/dart" target="_blank" rel="noopener noreferrer"><span class="sdk-platform">FLUTTER</span><h4>Dart / Flutter</h4><p>Mobile &amp; desktop API client</p><span class="sdk-card-link">View SDK <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span></span></a>
-          <a class="sdk-card" href="https://github.com/SteveC/geoprefix/tree/main/sdks/python" target="_blank" rel="noopener noreferrer"><span class="sdk-platform">SERVER</span><h4>Python</h4><p>Server-side API client</p><span class="sdk-card-link">View SDK <span aria-hidden="true">↗</span><span class="visually-hidden"> (opens in a new tab)</span></span></a>
-        </div>
-      </section>
-      <div class="developer-grid"><article class="code-card"><div class="code-heading"><span><span class="code-dot"></span> JAVASCRIPT · ES MODULE</span><button type="button" class="code-copy" id="copy-code">Copy <svg class="icon" aria-hidden="true"><use href="#icon-copy"/></svg></button></div><pre><code id="sdk-code"></code></pre><div class="code-footer"><a href="/sdk/geoprefix.js" download>Download the open SDK <span aria-hidden="true">↗</span></a><span>No framework required</span></div></article><article class="card developer-notes"><h3>Consent is an API input.</h3><p>Show your visitors a clear contribution notice before calling the SDK. Browser location permission alone is not permission to improve a public dataset.</p><ol class="flow-list"><li><span>1</span><div><strong>Explain & get agreement</strong><p>Say that a successful location will automatically contribute coarse location evidence.</p></div></li><li><span>2</span><div><strong>Ask the browser</strong><p>The SDK requests location only when your application calls it.</p></div></li><li><span>3</span><div><strong>Contribute or fall back</strong><p>When agreed and granted, contribute automatically. Otherwise return an IP estimate when available.</p></div></li></ol><p class="field-note">Call after a user action. A declined location request does not send a GPS contribution.</p></article></div>
-      <article class="card register-card"><div><p class="eyebrow">START BUILDING</p><h3>Register your application.</h3><p class="muted">Get an origin-restricted browser app token. The initial free quota is 100,000 requests per month.</p><p class="field-note">This token is for your client application. Register only site origins you control, including a port for local development.</p></div><form id="app-form"><div class="form-field"><label for="app-name">Application name</label><input id="app-name" maxlength="80" placeholder="My weather app" required></div><div class="form-field"><label for="app-origins">Allowed site origins</label><textarea id="app-origins" rows="2" placeholder="https://example.com&#10;http://localhost:3000" required aria-describedby="origins-help"></textarea><p id="origins-help" class="field-note">One origin per line. Include https:// or http://, without a page path.</p></div><button class="primary-button" id="register-button" type="submit">Create app token <svg class="icon" aria-hidden="true"><use href="#icon-arrow"/></svg></button><p id="app-status" class="form-status" role="status"></p><div id="app-token-result" class="token-result" hidden><label for="app-token">Your app token</label><div class="input-action"><input id="app-token" type="text" readonly spellcheck="false" autocomplete="off"><button type="button" class="outline-button" id="copy-token">Copy</button></div><p class="field-note">Save this token. It is not stored in this page after you leave.</p></div></form></article>
-      <div class="endpoint-strip"><div><span class="http-method">GET</span><code>/api/lookup?ip=…</code><p>IP → network location</p></div><div><span class="http-method">GET</span><code>/api/reverse?latitude=…&longitude=…</code><p>Place → known prefixes</p></div><div><span class="http-method post">POST</span><code>/api/observations</code><p>Consented evidence · app token required</p></div></div>
+    <section id="data" aria-labelledby="data-heading">
+      <h2 id="data-heading">Public database</h2>
+      <p id="dataset-stats">Loading database totals…</p>
+      <p>Download the complete current network summaries. Free for any use, under CC0.</p>
+      <div class="downloads"><a href="/api/dataset.csv" download>Download CSV</a><a href="/api/dataset.json" download>Download JSON</a><a href="/tools.html#accuracy">Accuracy report</a></div>
+      <details><summary>How observations become a network estimate</summary>
+        <p>We group rounded observations by IPv4 /24 (256 addresses) or IPv6 /48. A block needs observations from at least five distinct public addresses across two days before publication.</p>
+        <p>Every agreed capture stays in the private history until withdrawn. Repeat visits are retained, but each address has equal total weight in the estimated center. If a block appears in multiple places, its observed spread and uncertainty radius increase. Widely scattered blocks are labeled dispersed.</p>
+        <p>The download includes the number of observed location cells and median, 90th-percentile and maximum distances from the estimated center. These describe the observations; separate held-out measurements assess prediction error. Browser locations are not independently verified GPS fixes.</p>
+      </details>
     </section>
   </main>
-  <footer class="site-footer"><div><a class="footer-brand" href="#lookup">GeoPrefix<span>✳</span></a><p>An open map. An honest estimate.</p></div><div class="footer-links"><a href="#dataset" data-open-tab="dataset">Public data</a><a href="#accuracy" data-open-tab="accuracy">Accuracy</a><a href="/docs">API reference</a><a href="/privacy">Privacy & contributions</a><a href="/sdk/geoprefix.js">Open SDK</a><a href="https://github.com/SteveC/geoprefix" target="_blank" rel="noopener noreferrer">Source code ↗</a></div><span class="footer-note">Early atlas. Real evidence.<br>© <span id="current-year">2026</span> GeoPrefix</span></footer>
-  <div id="toast" class="toast" role="status" hidden></div>
+  <footer><a href="/privacy">Privacy &amp; contribution notice</a><a href="/docs">API reference</a><a href="/data-license">Data license</a><span>Code: Apache 2.0 · Data: CC0</span></footer>
+  <dialog id="location-request" aria-labelledby="request-heading" aria-describedby="request-description">
+    <form method="dialog">
+      <h2 id="request-heading">Share your location?</h2>
+      <div id="request-description"><p>Help build the IP database with one observation.</p><p>If you agree, our SDK asks for browser location and sends coordinates rounded to a roughly 11 km grid. We keep the rounded point, network block and time in a private history <strong>until you withdraw it</strong>. Only network summaries are published as public-domain data.</p><p class="note">Your full IP and precise coordinates are not stored. Deletion receipts are saved in this browser. Avoid contributing through a VPN or relay. <a href="/privacy">Read the notice.</a></p></div>
+      <div class="dialog-actions"><button value="share" autofocus>Agree &amp; share location</button><button class="secondary" value="ip">Use IP only</button></div>
+    </form>
+  </dialog>
+  <noscript>This demo needs JavaScript to request location. You can still download the CSV or JSON database.</noscript>
 </body>
 </html>

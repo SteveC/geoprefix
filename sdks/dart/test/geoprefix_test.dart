@@ -108,6 +108,7 @@ Future<void> main() async {
       longitude: -73.96871,
       accuracyM: 12,
       consent: true,
+      retention: 'history',
       capturedAt: captured,
       networkType: GeoPrefixNetworkType.mobile,
     );
@@ -119,6 +120,7 @@ Future<void> main() async {
       'Precise coordinates must never leave the client',
     );
     check(body['accuracy_m'] == 8012.0, 'Conservative rounding uncertainty');
+    check(body['retention'] == 'history', 'Disclosed history retention');
     check(
       body['reported_accuracy_m'] == 12.0,
       'Original provider uncertainty remains distinct',

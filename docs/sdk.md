@@ -15,7 +15,7 @@ The server exposes `sdks/javascript/geoprefix.js` at `/sdk/geoprefix.js`. Import
   <input id="contribute" type="checkbox">
   Also help improve the open GeoPrefix database: send our public IP alongside
   location rounded to a 0.1° grid, reported accuracy and observation time.
-  This is optional and may be commercially reused as coarse network estimates.
+  Keep the rounded observation until withdrawn. Public network summaries may be commercially reused under CC0.
 </label>
 <button id="locate">Find my location</button>
 <pre id="result"></pre>
@@ -28,6 +28,7 @@ The server exposes `sdks/javascript/geoprefix.js` at `/sdk/geoprefix.js`. Import
         endpoint: 'https://YOUR-DEPLOYMENT',
         appToken: 'YOUR_PUBLIC_SCOPED_APP_TOKEN',
         contributionConsent: document.querySelector('#contribute').checked,
+        retention: 'history',
         fallback: true,
         timeout: 8000,
       });
@@ -81,7 +82,8 @@ let receipt = try await client.contribute(
     longitude: location.coordinate.longitude,
     accuracyMeters: location.horizontalAccuracy,
     consent: userExplicitlyConsented,
-    capturedAt: location.timestamp
+    capturedAt: location.timestamp,
+    retention: "history"
 )
 ```
 
@@ -104,7 +106,8 @@ val receipt = client.contribute(
     longitude = location.longitude,
     accuracyMeters = location.accuracy.toDouble(),
     consent = userExplicitlyConsented,
-    capturedAt = java.util.Date(location.time)
+    capturedAt = java.util.Date(location.time),
+    retention = "history"
 )
 ```
 
@@ -128,7 +131,7 @@ Omitting `ip` from a server-side Python lookup locates the server's public egres
 
 Create an application using the website or `POST /api/apps`. Use its limited-scope `app_token` as the SDK token. Browser and mobile tokens are public and must be quota-limited by the service. Never embed an administrator key or other server secret. None of these clients takes an administrator key.
 
-Contribution requests use `POST /api/observations` with a bearer application token and `consent: true`. Accepted responses include the observation ID, validation status and `contribution_receipt`. Quarantined or duplicate responses may omit a receipt. Keep an accepted contribution's receipt private: it authorizes withdrawal using `DELETE /api/observations/{id}` and the `X-Contribution-Receipt` header. Uploaded observations remain subject to quarantine, network classification and independent corroboration. Browser/IP-derived circular observations, VPN exits, relays, mobile addressing and anycast require special handling by the data pipeline. Receiving a receipt does not imply that the estimate has been added to a public release.
+Contribution requests use `POST /api/observations` with a bearer application token and `consent: true`. Accepted responses include the observation ID, validation status and `contribution_receipt`. Quarantined captures remain in private history and include a deletion receipt; exact capture retransmissions may omit a new receipt. Keep an accepted contribution's receipt private: it authorizes withdrawal using `DELETE /api/observations/{id}` and the `X-Contribution-Receipt` header. Uploaded observations remain subject to quarantine, network classification and independent corroboration. Browser/IP-derived circular observations, VPN exits, relays, mobile addressing and anycast require special handling by the data pipeline. Receiving a receipt does not imply that the estimate has been added to a public release.
 
 The native and Python clients provide lookup, reverse lookup and explicit contribution. Automatic native permission prompts, native browser-first orchestration, package-registry publishing and additional languages are later work. Raw personal contribution records must not become public downloads; the public data product consists of validated coarse network aggregates.
 
@@ -137,4 +140,12 @@ The native and Python clients provide lookup, reverse lookup and explicit contri
 - Browser: `cd sdks/javascript && npm test` checks permission denial, deadlines, unavailable location, consent, coordinate rounding, upload failures and lookup failures.
 - Swift: `cd sdks/swift && swift build` compiles the package.
 - Python: the initial contribution serialization, coarse rounding and no-identifier behavior have been smoke-checked.
-- Android: source and Gradle module supplied; compilation requires a local Gradle/Android SDK installation and has not been verified in this workspace.
+- Android: the library is assembled in CI with the Android SDK and Gradle. Native permission flows require testing in the host app on devices.
+
+## Observation history (v0.2)
+
+All SDK contribution methods accept `retention` (`"30_days"` or `"history"`). The default remains `"30_days"` so an existing host's notice is not silently extended. For this project's new integrations, disclose that each rounded capture stays private until withdrawn and explicitly pass `retention: "history"` (Python: `retention="history"`). Every distinct capture is retained, including repeated public addresses on the same day. An exact capture retransmission is idempotent. Provider labels and reported accuracy remain unverified metadata.
+
+The homepage imports this same JavaScript module with `websiteDemo: true`, `contributionConsent: true` and `retention: "history"` only for its agreed location action. `websiteDemo` permits the limited same-origin demo contribution endpoint; remote apps still require scoped app tokens. `client.withdraw({id, contribution_receipt})` withdraws an observation.
+
+Public summaries now include `location_count`, `observed_median_distance_km`, `observed_p90_distance_km`, `observed_max_distance_km` and `distribution_status`. Repeated visits do not multiply an address's weight. A scattered block is published with an appropriately broad radius, not suppressed or represented as a reliable pinpoint. Observed spread is distinct from held-out prediction error.
