@@ -1,0 +1,15 @@
+GeoPrefix contribution notice — version 2026-10-11
+
+Use of location and contribution are disclosed before requesting device permission. Successful location results contribute coarse observations when the host app has obtained informed agreement. If permission is denied or location is unavailable, an IP estimate may be returned when the app has disclosed and enabled this fallback. No precise location is collected through that fallback.
+
+Client SDKs round coordinates to 0.1 degree (approximately an 11 km north/south grid) before sending. The service enforces rounding too. It observes the connection's public IP, converts it to an IPv4 /24 or IPv6 /48 network, and retains a keyed pseudonymous digest for deduplication. Exact public addresses and precise coordinates are not written to the observation database. Coarse coordinates, network prefix, app identity, reported uncertainty and timestamps are retained for up to 30 days. Requests are not access-logged by the app; infrastructure operators must configure their own logs consistently.
+
+Public CC0 releases contain network estimates supported by at least five distinct address observations across at least two days. Address observations do not prove five distinct people, and hashing or rounding does not guarantee anonymity. Conflicting estimates spanning over 100 km are withheld. The service does not publish individual observations, app identity or precise timestamps. Already downloaded public-domain releases cannot be recalled.
+
+The contribution response includes a deletion receipt. Keep it to withdraw the private observation using DELETE /api/observations/{id} with X-Contribution-Receipt. Future exports recompute the aggregate after withdrawal. Holdout observations are excluded from training and used only to assess preexisting estimates. Browser coordinates may use GPS, Wi-Fi or IP-derived location and are not independently verified GPS ground truth.
+
+App tokens allow limited contribution and lookup usage. Origin restrictions help prevent accidental misuse but do not make a browser token secret or prove coordinates are authentic. Do not send contributions from VPN, relay or hosting connections as if they locate the exit; supported connection-type flags are quarantined. The current release cannot detect all such connections automatically.
+
+Do not enable collection in child-directed apps or sensitive contexts without an appropriate consent and data-handling design. A host app is responsible for telling its users who receives data, the purpose and retention, and making its permission notice accurate.
+
+Paid-plan interest forms store the organization and contact details supplied for that purpose. No billing provider is connected in this initial release and no payments are processed.

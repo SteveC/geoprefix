@@ -1,0 +1,9 @@
+{
+  "name": "@geoprefix/browser",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": { ".": { "types": "./geoprefix.d.ts", "import": "./geoprefix.js" } },
+  "scripts": { "test": "node --test geoprefix.test.js" },
+  "files": ["geoprefix.js", "geoprefix.d.ts", "LICENSE"]
+}

@@ -1,0 +1,13 @@
+services:
+  geoprefix:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - geoprefix-data:/data
+    restart: unless-stopped
+    mem_limit: 512m
+volumes:
+  geoprefix-data:
