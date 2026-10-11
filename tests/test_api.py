@@ -12,7 +12,7 @@ def api(tmp_path, monkeypatch):
     monkeypatch.setenv('TRUST_PROXY_CIDRS', '127.0.0.1/32')
     import server.app
     m = importlib.reload(server.app)
-    return m, TestClient(m.app, client=('127.0.0.1', 4321))
+    return m, TestClient(m.app, client=('127.0.0.1', 4321), headers={'x-forwarded-for':'173.245.48.5','cf-connecting-ip':'8.8.8.1'})
 
 
 def headers(ip='8.8.8.1', token=None):
@@ -129,3 +129,27 @@ def test_expiration_removes_old_private_samples(api):
     with m.db() as db:
         db.execute('UPDATE observations SET created_at=?',(old,))
     assert c.get('/api/stats').json()['observations']==0
+
+
+def test_proxy_chain_cannot_be_forged_from_origin(api):
+    m,c=api
+    assert c.get('/api/me',headers={'x-forwarded-for':'1.1.1.1, 9.9.9.9','cf-connecting-ip':'8.8.8.8'}).json()['ip']=='9.9.9.9'
+    assert c.get('/api/me',headers={'x-forwarded-for':'junk, 173.245.48.5','cf-connecting-ip':'2606:4700::1111'}).json()['ip']=='2606:4700::1111'
+    assert c.get('/api/me',headers={'x-forwarded-for':'bad'}).status_code==400
+    assert c.get('/api/me',headers={'x-forwarded-for':''}).status_code==400
+    assert c.get('/api/me',headers={'cf-connecting-ip':'bad'}).status_code==400
+
+
+def test_https_demo_origin_behind_proxy(api):
+    m,c=api
+    result=c.post('/api/demo/observations',json=payload(),headers={**headers(),'origin':'https://testserver'})
+    assert result.status_code==202
+
+
+def test_chunked_body_limit(api):
+    m,c=api
+    def chunks():
+        yield b'{"name":"'
+        yield b'x'*17000
+        yield b'"}'
+    assert c.post('/api/apps',content=chunks(),headers={'content-type':'application/json'}).status_code==413

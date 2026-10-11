@@ -6,6 +6,7 @@ import hmac
 import io
 import ipaddress
 import json
+import logging
 import math
 import os
 import secrets
@@ -36,6 +37,7 @@ MIN_SAMPLES = max(5, int(os.getenv('MIN_SAMPLES', '5')))
 VERSION = '0.1.0'
 CF_RANGES = ('173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22','141.101.64.0/18','108.162.192.0/18','190.93.240.0/20','188.114.96.0/20','197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13','104.24.0.0/14','172.64.0.0/13','131.0.72.0/22','2400:cb00::/32','2606:4700::/32','2803:f800::/32','2405:b500::/32','2405:8100::/32','2a06:98c0::/29','2c0f:f248::/32')
 TRUSTED = [ipaddress.ip_network(n) for n in os.getenv('TRUST_PROXY_CIDRS', ','.join(CF_RANGES)).split(',') if n]
+CF_NETWORKS = [ipaddress.ip_network(n) for n in CF_RANGES]
 COLUMNS = ['network','ip_version','latitude','longitude','accuracy_radius_km','country_code','country_name','continent','region','region_code','city','postal_code','timezone','asn','as_name','as_domain','isp','organization','network_type','is_anycast','is_mobile','is_hosting','is_vpn','is_proxy','is_tor','sample_count','distinct_observers','first_seen','last_seen','updated_at','confidence','source','method','license','grid_degrees','median_error_km','p90_error_km','evaluation_count','registered_country','routing_prefix']
 
 def now():
@@ -70,11 +72,18 @@ with db() as c:
 
 @asynccontextmanager
 async def lifespan(application):
+    def purge():
+        with db() as c:
+            cleanup(c)
     async def purge_loop():
         while True:
-            with db() as c:
-                cleanup(c)
-            await asyncio.sleep(3600)
+            try:
+                await asyncio.to_thread(purge)
+            except sqlite3.Error:
+                logging.warning('Retention purge will retry after a database error')
+                await asyncio.sleep(60)
+            else:
+                await asyncio.sleep(3600)
     task = asyncio.create_task(purge_loop())
     try:
         yield
@@ -84,6 +93,34 @@ async def lifespan(application):
             await task
 
 app = FastAPI(title='GeoPrefix', version=VERSION, lifespan=lifespan, description='Public domain IP geography built from disclosed, coarse contributions. Empty until observations support a result.')
+
+class RequestBodyLimit:
+    def __init__(self, app):
+        self.app=app
+
+    async def __call__(self, scope, receive, send):
+        if scope['type']!='http' or scope['method'] not in ('POST','PUT','PATCH'):
+            return await self.app(scope,receive,send)
+        body=bytearray()
+        while True:
+            message=await receive()
+            if message['type']=='http.disconnect':
+                return
+            body.extend(message.get('body',b''))
+            if len(body)>16384:
+                return await JSONResponse({'detail':'Request body too large'},status_code=413)(scope,receive,send)
+            if not message.get('more_body',False):
+                break
+        delivered=False
+        async def bounded_receive():
+            nonlocal delivered
+            if not delivered:
+                delivered=True
+                return {'type':'http.request','body':bytes(body),'more_body':False}
+            return await receive()
+        await self.app(scope,bounded_receive,send)
+
+app.add_middleware(RequestBodyLimit)
 
 @app.middleware('http')
 async def headers(request: Request, call_next):
@@ -112,15 +149,22 @@ async def headers(request: Request, call_next):
 
 def client_ip(request):
     peer = ipaddress.ip_address(request.client.host)
-    # Only trust an end-user header when the immediate socket peer is trusted.
-    if any(peer in n for n in TRUSTED if n.version == peer.version):
-        candidate = request.headers.get('cf-connecting-ip')
-        if candidate:
-            try:
-                return ipaddress.ip_address(candidate)
-            except ValueError:
-                raise HTTPException(400, 'Invalid visitor address')
-    return peer
+    if not any(peer in n for n in TRUSTED if n.version == peer.version):
+        return peer
+    # Traefik appends its actual external peer as the final XFF element.
+    # Never let a direct-origin visitor impersonate Cloudflare with a header.
+    external = peer
+    if not any(peer in n for n in CF_NETWORKS if n.version == peer.version):
+        try:
+            external = ipaddress.ip_address(request.headers.get('x-forwarded-for','').split(',')[-1].strip())
+        except ValueError:
+            raise HTTPException(400, 'Trusted proxy must append its external peer')
+    if any(external in n for n in CF_NETWORKS if n.version == external.version):
+        try:
+            return ipaddress.ip_address(request.headers.get('cf-connecting-ip',''))
+        except ValueError:
+            raise HTTPException(400, 'Cloudflare must supply a valid visitor address')
+    return external
 
 def public_ip(value):
     try:
@@ -132,10 +176,9 @@ def public_ip(value):
     return ip
 
 def limit(c, bucket, maximum):
-    row = c.execute('SELECT n FROM counters WHERE bucket=?', (bucket,)).fetchone()
-    if row and row['n'] >= maximum:
+    row = c.execute('INSERT INTO counters VALUES (?,1) ON CONFLICT(bucket) DO UPDATE SET n=n+1 WHERE counters.n < ? RETURNING n', (bucket,maximum)).fetchone()
+    if not row:
         raise HTTPException(429, 'Quota reached. Self-hosting and public downloads are unlimited.')
-    c.execute('INSERT INTO counters VALUES (?,1) ON CONFLICT(bucket) DO UPDATE SET n=n+1', (bucket,))
 
 def rate(request, action, maximum=60):
     bucket = action + ':' + digest(client_ip(request)) + ':' + now()[:16]
