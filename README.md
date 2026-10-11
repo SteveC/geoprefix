@@ -29,7 +29,7 @@ Create a public Git application using the Dockerfile, internal port 8000 and hea
 
 ## Tests
 
-Install pytest/httpx and run `pytest tests`. JavaScript SDK tests are documented in sdks/javascript. Dart checks are documented in sdks/dart. CI checks the service and JavaScript/Dart clients on every push. Swift builds locally; the Android client still requires an Android toolchain build and physical-device permission-flow verification. Use an isolated DATA_DIR for tests; no synthetic measurements should enter the production atlas.
+Install pytest/httpx and run `python -m pytest tests`. JavaScript SDK tests are documented in sdks/javascript. Dart checks are documented in sdks/dart. CI checks the service and JavaScript/Dart clients, builds the Swift package, and assembles the Android library on every push. Native permission flows still require testing in the host apps on physical devices. Use an isolated DATA_DIR for tests; no synthetic measurements should enter the production atlas.
 
 ## Data provenance
 
